@@ -1,11 +1,11 @@
 # PROTAX-GPU
 
 <p align="center">
-  <img src="docs/_static/images/Block_diagram_upd.png" alt="PROTAX-GPU Architecture" width="600">
+  <img src="img/Block_diagram_upd.png" alt="PROTAX-GPU Architecture" width="600">
 </p>
 
 <p align="center">
-  <a href="https://github.com/uoguelph-mlrg/PROTAX-GPU/actions"><img alt="Build Status" src="https://github.com/uoguelph-mlrg/PROTAX-GPU/workflows/CI/badge.svg"></a>
+  <!-- <a href="https://github.com/uoguelph-mlrg/PROTAX-GPU/actions"><img alt="Build Status" src="https://github.com/uoguelph-mlrg/PROTAX-GPU/workflows/CI/badge.svg"></a> -->
   <a href="https://your-username.github.io/PROTAX-GPU/"><img alt="Documentation" src="https://img.shields.io/badge/docs-latest-blue.svg"></a>
   <a href="https://github.com/uoguelph-mlrg/PROTAX-GPU/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg"></a>
   <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
