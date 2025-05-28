@@ -40,9 +40,9 @@ cd PROTAX-GPU
 pip install .
 ```
 
-## 📖 Documentation
+## Documentation
 
-> 📝 **Note**: Documentation is being set up. Links will be active shortly.
+> **Note**: Documentation is being set up. Links will be active shortly.
 
 **Complete documentation is available at: [protax-gpu.readthedocs.io](https://protax-gpu.readthedocs.io/)**
 
@@ -70,7 +70,7 @@ pip install .
 | **macOS (Apple Silicon)** | ✅ Full support | N/A | ❌ Not supported |
 | **Windows** | 🧪 Experimental | 🧪 Experimental | N/A |
 
-## 📊 Performance
+## Performance
 
 PROTAX-GPU achieves significant speedups over CPU-only implementations:
 
@@ -83,7 +83,7 @@ PROTAX-GPU achieves significant speedups over CPU-only implementations:
 *See [performance benchmarks](https://your-username.github.io/PROTAX-GPU/experiments.html) for detailed results.*
 
 
-## 📄 License
+## License
 
 This project is licensed under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) License - see the [LICENSE](LICENSE) file for details.
 
@@ -116,20 +116,16 @@ And the original PROTAX paper:
 }
 ```
 
+## Dataset
+
+- **[FinPROTAX](https://github.com/psomervuo/FinPROTAX)** - Smaller FinPROTAX dataset is included in the models directory.
+- **[BOLD 7.8M](https://boldsystems.org/datarelease)** - DNA barcode database. The dataset is not included in this repository due to its size.
+
 ## Related Resources
-
-- **[Original PROTAX](https://github.com/psomervuo/FinPROTAX)** - CPU implementation
-- **[BOLD Systems](https://www.boldsystems.org/)** - DNA barcode database
 - **[JAX](https://jax.readthedocs.io/)** - Machine learning framework
-
-## Support
-
-- **📖 Documentation**: [Complete documentation](https://your-username.github.io/PROTAX-GPU/)
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/uoguelph-mlrg/PROTAX-GPU/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/uoguelph-mlrg/PROTAX-GPU/discussions)
 
 ---
 
 <p align="center">
-  📖 <a href="https://your-username.github.io/PROTAX-GPU/"><strong>Read the full documentation</strong></a>
+  <a href="https://your-username.github.io/PROTAX-GPU/"><strong>Read the full documentation</strong></a>
 </p>
