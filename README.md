@@ -1,7 +1,7 @@
 # PROTAX-GPU
 
 <p align="center">
-  <img src="img/Block_diagram_upd.png" alt="PROTAX-GPU Architecture" width="600">
+  <img src="source/_static/img/Block_diagram_upd.png" alt="PROTAX-GPU Architecture" width="600">
 </p>
 
 <p align="center">

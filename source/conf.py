@@ -42,12 +42,17 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+html_extra_path = ['../source/_static']
+
+# Enable figure numbering
+numfig = True
 
 # -- MyST parser configuration -----------------------------------------------
 myst_enable_extensions = [
     "deflist",      # Definition lists
     "tasklist",     # Task lists
     "colon_fence",  # Colon fences for code blocks
+    "html_image",   # Enable HTML image tags
 ]
 
 # -- Napoleon settings -------------------------------------------------------
