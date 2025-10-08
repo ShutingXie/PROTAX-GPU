@@ -1,6 +1,10 @@
 PROTAX-GPU
 ==========
 
+.. image:: https://readthedocs.org/projects/protax-gpu/badge/?version=latest
+   :target: https://protax-gpu.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
+
 .. image:: img/Block_diagram_upd.png
    :alt: PROTAX-GPU block diagram
    :align: center
@@ -121,7 +125,7 @@ Example:
    python scripts/process_seqs.py models/ref_db/test_refs.aln models/params/model.npz models/ref_db/taxonomy37k.npz
 
 Arguments:
-- ``PATH_TO_QUERY_SEQUENCES``: File containing the sequences to classify (e.g., FASTA or alignment file)(Can use refs.aln from [FinPROTAX](https://github.com/psomervuo/FinPROTAX/tree/main) for experiment)
+- ``PATH_TO_QUERY_SEQUENCES``: File containing the sequences to classify (e.g., FASTA or alignment file)(Can use refs.aln from `FinPROTAX <https://github.com/psomervuo/FinPROTAX/tree/main>`_ for experiment)
 - ``PATH_TO_MODEL``: Path to the model (a baseline model is available in ``models/params/model.npz``)
 - ``PATH_TO_TAXONOMY``: Path to the taxonomy ``.npz`` file (available in ``models/ref_db/taxonomy37k.npz``)
 
@@ -152,7 +156,7 @@ The script uses ``models/params/model.npz`` as baseline and saves the trained mo
 
 Hardware
 --------
-To reproduce the BOLD dataset experiments, PROTAX-GPU requires an NVIDIA GPU with at least 8GB VRAM and CUDA compute capability 6.0 or later. This corresponds to GPUs in the NVIDIA Pascal, NVIDIA Volta™, NVIDIA Turing™, NVIDIA Ampere architecture, and NVIDIA Hopper™ architecture families.
+To reproduce the BOLD dataset experiments, PROTAX-GPU requires an NVIDIA GPU with at least 16GB VRAM and CUDA compute capability 6.0 or later. This corresponds to GPUs in the NVIDIA Pascal, NVIDIA Volta™, NVIDIA Turing™, NVIDIA Ampere architecture, and NVIDIA Hopper™ architecture families.
 
 
 Datasets
