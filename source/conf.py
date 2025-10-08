@@ -32,6 +32,7 @@ autodoc_mock_imports = [
     'matplotlib',
     'protax.ops.cpu_ops',
     'protax.ops.gpu_ops',
+    'protax.ops.knn_register',
 ]
 
 
