@@ -1,25 +1,15 @@
-PROTAX-GPU documentation
+PROTAX-GPU Documentation
 ========================
-
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
 
 .. include:: ../README.rst
 
 
+Contents
+--------
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents
+   :caption: Documentation
 
-   installation
-   quickstart
-   user_guide/index
-   examples/index
    api/index
-   experiments/index
-   development/index
-   faq
-   changelog
-   references
 
