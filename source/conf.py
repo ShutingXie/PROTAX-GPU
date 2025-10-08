@@ -15,13 +15,19 @@
 import datetime
 import os
 import sys
-from inspect import getsourcefile
 
-DOCS_SOURCE_DIR = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
-DOCS_DIR = os.path.dirname(DOCS_SOURCE_DIR)
-REPO_DIR = os.path.dirname(DOCS_DIR)
+# Get the directory containing this conf.py file
+DOCS_SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Get the repository root (parent of source/)
+REPO_DIR = os.path.dirname(DOCS_SOURCE_DIR)
 
+# Add the repository root to sys.path so we can import protax
 sys.path.insert(0, REPO_DIR)
+
+# Debug: Print paths during build (will show in RTD build log)
+print(f"[PROTAX-GPU Docs] DOCS_SOURCE_DIR: {DOCS_SOURCE_DIR}")
+print(f"[PROTAX-GPU Docs] REPO_DIR: {REPO_DIR}")
+print(f"[PROTAX-GPU Docs] sys.path[0]: {sys.path[0]}")
 
 
 # -- Project information -----------------------------------------------------
