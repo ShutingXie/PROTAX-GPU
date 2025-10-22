@@ -13,6 +13,17 @@ from pathlib import Path
 
 
 def load_layer(tdir):
+    """
+    Load per-node taxonomic levels from a taxonomy NPZ file.
+
+    Args:
+        tdir: Path-like object or string pointing to a taxonomy `.npz` file
+            produced by `convert_taxonomy` (e.g., `models/ref_db/taxonomy*.npz`).
+
+    Returns:
+        A 1D numpy array of integers where each entry is the layer index
+        (rank depth) for the corresponding node in the taxonomy.
+    """
     tax_dir = Path(tdir)
 
     tax = np.load(tax_dir.resolve())
@@ -25,7 +36,17 @@ def load_layer(tdir):
 
 def read_names(tdir):
     """
-    Read names of each taxon from file
+    Read the taxon names from a PROTAX taxonomy text file.
+
+    The file is expected to be a tab-separated text file where each line
+    contains `nid, pid, lvl, name, prior, ...`. Only the `name` field is
+    collected.
+
+    Args:
+        tdir: Path to the taxonomy `.priors` text file.
+
+    Returns:
+        A list of strings containing the taxon names in index order.
     """
     f = open(tdir)
     node_dat = f.readlines()
@@ -65,7 +86,22 @@ def validate_taxonomy_query(tree, query, ok_query):
 
 def classify_file(qdir, par_dir, tax_dir, verbose=False):
     """
-    Process a batch of queries given a model and taxonomy directory
+    Classify a batch of query sequences using a trained PROTAX model.
+
+    This function streams query sequences from a FASTA-like alignment file
+    (two lines per record: header then sequence), computes per-node
+    probabilities with the JAX implementation, and writes the per-level
+    predictions to `pyprotax_results.csv`.
+
+    Args:
+        qdir: Path to the query alignment file (e.g., `refs.aln`).
+        par_dir: Path to the model parameters `.npz` file (e.g., `models/params/model.npz`).
+        tax_dir: Path to the taxonomy `.npz` file (e.g., `models/ref_db/taxonomy*.npz`).
+        verbose: If True, prints per-record timing and optional debug info.
+
+    Side Effects:
+        Writes `pyprotax_results.csv` with one row per query containing the
+        predicted level indices.
     """
 
     tree, params, N, segnum = read_model_jax(par_dir, tax_dir)
@@ -116,6 +152,22 @@ def classify_file(qdir, par_dir, tax_dir, verbose=False):
 
 
 def classify(q, ok, tree, params, segnum, N):
+    """
+    Classify a single query sequence given a taxonomy and model parameters.
+
+    This is a placeholder for a lower-level API that mirrors `classify_file`.
+
+    Args:
+        q: Packed bits representation of the query sequence bases (A/T/G/C).
+        ok: Packed bits mask of positions that are valid base calls.
+        tree: `TaxTree` containing reference database and topology.
+        params: `ProtaxModel` parameters (beta and scaling stats).
+        segnum: Number of unique segment ids in `tree.segments`.
+        N: Number of nodes in the taxonomy.
+
+    Returns:
+        Not implemented yet.
+    """
     pass
 
 

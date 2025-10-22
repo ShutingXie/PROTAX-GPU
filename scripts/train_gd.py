@@ -20,17 +20,34 @@ import argparse
 
 def CE_loss(log_probs, y_ind):
     """
-    Computes the cross-entropy loss between the log_probs and
-    labels y_ind.
+    Cross-entropy loss for selected targets from per-node log-probabilities.
 
     Args:
-        log_probs: Log probabilities returned by the model, shape (N, D)
-        y_ind: Integer array of true class indices, shape (N,)
+        log_probs: Log-branch probabilities (levels by paths) or log-probs
+            indexed such that gathering by `y_ind` yields the per-sample terms.
+        y_ind: Integer target indices for each sample.
+
+    Returns:
+        Scalar negative log-likelihood for the batch.
     """
     return -jnp.sum(jnp.take(log_probs, y_ind, axis=0))
 
 
 def forward(q, ok, tree, beta, sc_mean, sc_var, N, segnum, y_ind, lvl):
+    """
+    Forward pass: build design matrix, compute log-branch probs, CE loss.
+
+    Args:
+        q, ok: Packed bits query and validity.
+        tree: `TaxTree`.
+        beta, sc_mean, sc_var: Parameters or stats.
+        N, segnum: Taxonomy sizes.
+        y_ind: Target node index.
+        lvl: Per-node level index used to broadcast beta per level.
+
+    Returns:
+        Scalar loss.
+    """
     beta = jnp.take(beta, lvl, axis=0)
     X = model.get_X(q, ok, tree, N, sc_mean, sc_var)
     log_probs = model.fill_log_bprob(X, beta, tree, segnum)
@@ -43,7 +60,7 @@ forward_jit = jax.jit(forward, static_argnums=(6, 7))
 
 def get_targ(target_dir):
     """
-    Get node id for each reference sequence at lowest level
+    Extract, per reference, the most specific (lowest-level) node id target.
     """
     targ = pd.read_csv(target_dir)
     targ = targ.to_numpy()[:, 1:].T
@@ -64,7 +81,7 @@ def get_targ(target_dir):
 
 def mask_n2s(n2s, node_state, i):
     """
-    Remove a column in node2seq
+    Remove one reference column from node2seq and update node_state accordingly.
     """
     ref_mask = np.ones((n2s.shape[1],), dtype=np.int32)
     ref_mask[i] = 0
@@ -88,6 +105,12 @@ def mask_n2s(n2s, node_state, i):
 
 
 def load_params(pdir, tdir):
+    """
+    Load raw parameters and layer indices from saved `.npz` archives.
+
+    Returns:
+        Tuple `(beta, lvl, sc)`.
+    """
     par_dir = Path(pdir)
     tax_dir = Path(tdir)
 
@@ -105,6 +128,14 @@ def load_params(pdir, tdir):
 
 
 def train(train_config, train_dir, targ_dir):
+    """
+    Train beta parameters via SGD on reference self-classification.
+
+    Args:
+        train_config: Dict with keys `learning_rate`, `batch_size`, `num_epochs`.
+        train_dir: Path to references alignment used for self-supervision.
+        targ_dir: Path to CSV of per-reference targets.
+    """
     tree, params, N, segnum = protax_utils.read_model_jax(
         "models/params/model.npz", "models/ref_db/taxonomy37k.npz"
     )

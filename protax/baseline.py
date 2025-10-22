@@ -9,8 +9,19 @@ import pandas as pd
 @jax.jit
 def seq_dist(q, seqs, ok, ok_query):
     """
-    Computes sequence distance between the query and 
-    an array of reference sequences
+    Compute distance between one query and many references (baseline NN).
+
+    Distance is defined as 1 - matches/valid where `valid` counts positions
+    that are valid in both query and reference.
+
+    Args:
+        q: Packed bits for the query bases.
+        seqs: Packed bits for reference bases, shape (R, D').
+        ok: Packed bits mask for valid reference positions, shape (R, D').
+        ok_query: Packed bits mask for valid query positions, shape (D',).
+
+    Returns:
+        Index of the reference with maximum distance (largest dissimilarity).
     """
 
     # count matches and valid positions
@@ -22,13 +33,36 @@ def seq_dist(q, seqs, ok, ok_query):
     return jnp.argmax(1 - (match_tots / ok))
 
 def nearest_classifier(q, seqs, ok, ok_query, n2s):
+    """
+    Return the leaf node id for the reference selected by `seq_dist`.
+
+    Note: As implemented, `seq_dist` returns the farthest reference (argmax
+    of distance), so this does not perform true nearest-neighbor classification.
+
+    Args:
+        q: Packed query bases.
+        seqs: Packed reference bases.
+        ok: Packed valid positions for references.
+        ok_query: Packed valid positions for query.
+        n2s: Sparse node-to-sequence mapping (CSC) for dereferencing leaf id.
+
+    Returns:
+        Integer node id of the selected reference's taxon.
+    """
     closest_r = int(seq_dist(q, seqs, ok, ok_query))
     return n2s[:, closest_r].indices[-1]
 
 
 def classify_file(qdir, verbose=False):
     """
-    Process a batch of queries using baseline classifier
+    Classify queries using a simple nearest-neighbor baseline and save results.
+
+    Args:
+        qdir: Path to query alignment file (two-line records).
+        verbose: Unused; reserved for future logging.
+
+    Side Effects:
+        Writes `dist_baseline_results.csv` with predicted leaf paths per query.
     """
 
     refs, ok_pos, n2s, paths = read_baseline(r"/home/roy/Documents/PROTAX-dsets/30k_small")

@@ -15,6 +15,9 @@ TEST_QUERY = '---------------------------GCTGGTATAGTAGGAACATCTTTA---AGAATTTTAATT
 
 # ===== Helper functions =====
 def valid_path(dir):
+    """
+    Argparse path validator that ensures the given path exists.
+    """
     dir = Path(dir)
     if not dir.exists():
         raise argparse.ArgumentTypeError(f"{dir} is not a valid path")
@@ -24,7 +27,14 @@ def valid_path(dir):
 
 def lil_to_csr(lil, shape):
     """
-    Converts a list of lists to a csr matrix
+    Convert a Python list-of-lists of column indices to a CSR matrix.
+
+    Args:
+        lil: List where `lil[i]` contains column indices for row i.
+        shape: Target matrix shape (rows, cols).
+
+    Returns:
+        A SciPy CSR matrix with boolean data.
     """
 
     num_nonzero = 0
@@ -47,7 +57,7 @@ def lil_to_csr(lil, shape):
 
 def add_unknown_nodes(df):
     """
-    Adds unknown nodes to the taxonomy
+    Append sibling "unknown" nodes for each unique parent in the taxonomy.
     """
     parents = df["parentid"].unique() 
     nid = df.index.max() + 1
@@ -66,7 +76,7 @@ def add_unknown_nodes(df):
 
 def add_prior(df):
     """
-    Adds uniform prior over leaves to the taxonomy.
+    Compute and attach a uniform prior mass distributed over leaf nodes.
     """
     print("start adding prior")
     parents = df["parentid"].unique() 
@@ -92,9 +102,8 @@ def add_prior(df):
 
 
 def trim_subtaxa(df, keep):
-    """ 
-    Remove subtaxa from taxonomy specified in <keep>.
-    parents inherit subtaxa's children
+    """
+    Remove taxa whose rank is not in `keep`, reattaching children to kept parents.
     """
     print("start trimming subtaxa")
     ranks = dict(zip(df.index, df["rank"]))
@@ -130,6 +139,9 @@ def trim_subtaxa(df, keep):
     print("\nfinished trimming subtaxa")
 
 def convert_tsv(t_dir):
+    """
+    Convert a taxonomy TSV into PROTAX arrays and an intermediate NPZ file.
+    """
 
     # TODO change get_descendants to work with root being excluded
     df = pd.read_csv(t_dir, sep='\t')
@@ -178,6 +190,9 @@ def convert_tsv(t_dir):
 
 
 def assign_tax(ref_dir):
+    """
+    Assign reference sequences to taxa names to build node2seq and arrays.
+    """
     # TODO: temporary hardcoded funct to prevent processing again when debugging
     tax = np.load("temp_tax.npz", allow_pickle=True)
     names = tax["names"]
@@ -254,7 +269,7 @@ def assign_tax(ref_dir):
 
 def convert_sequences(ref_dir):
     """
-    converts reference sequences in tsv format to protax format
+    Convert a TSV file of sequences into packed-bit arrays for PROTAX.
     """
 
     # TODO remove hardcoded values
@@ -297,7 +312,7 @@ def convert_sequences(ref_dir):
 
 def read_jax_model(model_dir):
     """
-    Reads model files from JAX implementation of PROTAX
+    Load a small test model/taxonomy stored by earlier conversion helpers.
     """
     tax_npz = np.load("8M_tax.npz", allow_pickle=True)
     

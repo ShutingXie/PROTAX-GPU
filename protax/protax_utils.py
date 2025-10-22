@@ -13,7 +13,16 @@ from pathlib import Path
 
 def read_params(pdir):
     """
-    Read parameters from file
+    Read parameter matrix from a plaintext file into a list of jax arrays.
+
+    The file is expected to contain whitespace-separated float values per line
+    for each model level; lines are parsed into arrays via `jnp.fromstring`.
+
+    Args:
+        pdir: Path to the parameter file, typically `model.pars`.
+
+    Returns:
+        A list of jax arrays, one per line.
     """
     print("reading parameters")
     
@@ -26,7 +35,17 @@ def read_params(pdir):
 
 def read_scalings(pdir):
     """
-    Read scalings from file
+    Read scaling statistics from a plaintext file into a numpy array.
+
+    The file is expected to contain tokens like `mean <value> var <value>` per
+    row; this function extracts alternating values into a float32 array
+    shaped (levels, 4), later split into mean/var per distance feature.
+
+    Args:
+        pdir: Path to the scalings file, typically `model.scs`.
+
+    Returns:
+        A numpy array of shape (L, 4) with scaling stats.
     """
     print("reading scalings")
     f = open(pdir)
@@ -40,7 +59,22 @@ def read_scalings(pdir):
 
 def read_taxonomy(tdir):
     """
-    Read taxonomy tree from file
+    Read a PROTAX taxonomy description and build core arrays.
+
+    The input is a tab-separated file `taxonomy.priors` with columns
+    `(nid, pid, lvl, name, prior, ...)`. This returns:
+    - segments: parent ids per node mapped to compact segment ids (for JAX segment ops)
+    - unks: boolean flag for unknown nodes
+    - layers: integer taxonomic level per node
+    - priors: prior probability mass per node
+    - descendants: per-node path indices to ancestors across levels
+    - parents: raw parent nid per node
+
+    Args:
+        tdir: Path to `taxonomy.priors`.
+
+    Returns:
+        Tuple of numpy arrays `(segments, unks, layers, priors, descendants, parents)`.
     """
     print("reading taxonomy file")
     f = open(tdir)
@@ -86,7 +120,20 @@ def read_taxonomy(tdir):
 
 def get_descendants(nodes, N, layers):
     """
-    Get the descendant nodes for each entry in a node-parent vector
+    Compute, for each node, the ancestor path indices across taxonomic levels.
+
+    NOTE: This implementation assumes reverse-topological ordering and uses a
+    fixed width of 8 for levels; it may need adjustments if the number of
+    ranks differs.
+
+    Args:
+        nodes: Parent nid per node, shape (N,).
+        N: Total number of nodes.
+        layers: Layer index per node, shape (N,).
+
+    Returns:
+        A numpy int array of shape (N, 8) where each row stores the nid of
+        the ancestor at a given layer index for that node.
     """
 
     # TODO fix this
@@ -109,7 +156,16 @@ def get_descendants(nodes, N, layers):
 
 def read_refs(ref_dir):
     """
-    Read reference sequences from file
+    Read reference sequences in alignment format and pack to bits.
+
+    The file is read in pairs of lines: header then sequence. Sequences are
+    converted to packed bits arrays for A/T/G/C and a validity mask.
+
+    Args:
+        ref_dir: Path to `refs.aln` or an equivalent two-line FASTA-like file.
+
+    Returns:
+        Tuple `(refs, ok_pos)` of numpy uint8 arrays containing packed bits.
     """
     print("reading reference sequences")
     f = open(ref_dir)
@@ -133,7 +189,14 @@ def read_refs(ref_dir):
 
 def assign_refs(seq2tax_dir):
     """
-    Assign reference sequences to nodes from file
+    Build a sparse mapping from nodes to reference sequence indices.
+
+    Args:
+        seq2tax_dir: Path to `model.rseqs.numeric` describing node-to-refs.
+
+    Returns:
+        Tuple `(nids, seqs)` of integer arrays listing node ids and matching
+        reference ids suitable for constructing a CSR matrix.
     """
     # TODO make a processing script for easier reading on next runs
     print("\nassigning reference sequences to taxa")
@@ -155,7 +218,14 @@ def assign_refs(seq2tax_dir):
 
 def get_seq_bits(seq_str):
     """
-    Convert seqence string to bit representation
+    Convert a sequence string into boolean bit planes for A/T/G/C and validity.
+
+    Args:
+        seq_str: String of characters from {A,T,G,C,-} (or other ambiguous).
+
+    Returns:
+        A numpy boolean array of shape (5, L) where rows 0-3 are A/T/G/C and
+        row 4 is a validity mask (any of A/T/G/C).
     """
     seq_chars = np.frombuffer(seq_str.encode('ascii'), np.int8)
     a = seq_chars == 65
@@ -170,14 +240,29 @@ def get_seq_bits(seq_str):
 
 def assign_params(beta, sc, lvl):
     """
-    Assign parameters to each node given the levels each node is in
+    Broadcast per-level parameters to per-node arrays via layer index.
+
+    Args:
+        beta: Parameter matrix per level, shape (L, M).
+        sc: Scaling statistics per level, shape (L, 4).
+        lvl: Layer index per node, shape (N,).
+
+    Returns:
+        Tuple `(beta_node, sc_node)` where shapes are (N, M) and (N, 4).
     """
     return np.take(beta, lvl-1, axis=0), np.take(sc, lvl-1, axis=0)
 
 
 def convert_model(model_dir, savedir="models/params"):
     """
-    Read and convert model files stored in model_dir, convert and save them to npz
+    Convert plaintext PROTAX model files into a compressed `.npz` archive.
+
+    Reads `model.pars` and `model.scs` from `model_dir` and writes
+    `model.npz` into `savedir` (with numeric suffixes if the file exists).
+
+    Args:
+        model_dir: Directory containing `model.pars` and `model.scs`.
+        savedir: Output directory for the converted `.npz` file.
     """
     mdir = Path(model_dir)
     savedir = Path(savedir)
@@ -205,7 +290,15 @@ def convert_model(model_dir, savedir="models/params"):
 
 def convert_taxonomy(treedir, savedir="models/ref_db"):
     """
-    Read model files stored in treedir, convert and save them to a npz
+    Convert taxonomy files into a compressed `.npz` archive for JAX.
+
+    Reads `taxonomy.priors`, `refs.aln`, and `model.rseqs.numeric` from
+    `treedir`, computes node state and mappings, and writes `taxonomy.npz` to
+    `savedir` (with numeric suffixes if needed).
+
+    Args:
+        treedir: Directory containing taxonomy inputs.
+        savedir: Output directory for the converted `.npz` file.
     """
 
     treedir = Path(treedir)
@@ -254,6 +347,16 @@ def convert_taxonomy(treedir, savedir="models/ref_db"):
 
 
 def read_baseline(model_dir=r"/h/royga/Documents/PROTAX-dsets/30k_small"):
+    """
+    Load a minimal baseline representation for nearest-neighbor classification.
+
+    Args:
+        model_dir: Directory containing a `model.npz` with taxonomy arrays.
+
+    Returns:
+        Tuple `(refs, ok_pos, n2s, paths)` where `n2s` is a CSR matrix mapping
+        nodes to sequences.
+    """
     loaded = np.load(model_dir + r'/model.npz')
     refs = jnp.array(loaded['refs'])
     seg = loaded['segments']
@@ -269,7 +372,16 @@ def read_baseline(model_dir=r"/h/royga/Documents/PROTAX-dsets/30k_small"):
 
 def read_model_jax(par_dir, tax_dir):
     """
-    Read model npz representation
+    Load model and taxonomy from `.npz` archives into JAX-friendly structures.
+
+    Args:
+        par_dir: Path to `model.npz` containing `beta` and `scalings`.
+        tax_dir: Path to `taxonomy*.npz` containing refs, ok_pos, segments, etc.
+
+    Returns:
+        Tuple `(tree, params, N, segnum)` where `tree` is a `TaxTree`,
+        `params` is a `ProtaxModel`, `N` is number of nodes, and `segnum` is
+        the number of unique segments.
     """
     par_dir = Path(par_dir)
     tax_dir = Path(tax_dir)
@@ -331,7 +443,17 @@ def read_model_jax(par_dir, tax_dir):
 
 def get_train_targets(seq2tax_dir, layers, R):
     """
-    Save target NIDs for each reference sequence contained in R. Save as CSV
+    Compute per-reference target node ids at the lowest available level.
+
+    The output is written to `30k-targets.csv` for downstream training.
+
+    Args:
+        seq2tax_dir: Path to file mapping nodes to reference ids.
+        layers: Layer index per node, shape (N,).
+        R: Number of reference sequences.
+
+    Side Effects:
+        Writes a CSV file `30k-targets.csv` with targets per level.
     """
     f = open(seq2tax_dir)
 
@@ -352,12 +474,29 @@ def get_train_targets(seq2tax_dir, layers, R):
 
 
 def read_query(q):
+    """
+    Convert a single sequence string into packed bits arrays for JAX.
+
+    Args:
+        q: Sequence string.
+
+    Returns:
+        Tuple `(packed_bases, packed_ok)` as jax arrays of dtype uint8.
+    """
     s = get_seq_bits(q)
     return jnp.array(np.packbits(s[:4], axis=None)), jnp.array(np.packbits(s[4], axis=None))
 
 
 def str2batch_query(q):
+    """
+    Batch-convert multiple sequence strings into packed bits arrays.
 
+    Args:
+        q: Iterable of sequence strings.
+
+    Returns:
+        Tuple `(queries, ok_pos)` both jax arrays with packed bits.
+    """
     queries = []
     ok_pos = []
     for i in q:

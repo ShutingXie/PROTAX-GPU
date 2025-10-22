@@ -9,8 +9,20 @@ from .ops import knn, knn_v2
 # @jax.jit
 def seq_dist(q, seqs, ok, ok_query):
     """
-    Computes sequence distance between the query and 
-    an array of reference sequences
+    Compute Hamming-like distance between one query and many references.
+
+    Distances are computed as 1 - matches/valid where `valid` counts positions
+    that are valid in both the query and each reference. Bits are packed; A/T/G/C
+    bits are compared via bitwise operations.
+
+    Args:
+        q: Packed bits array for the query sequence bases (A/T/G/C), shape (D',).
+        seqs: Packed bits for reference sequences, shape (R, D').
+        ok: Packed bits mask of valid positions for references, shape (R, D').
+        ok_query: Packed bits mask of valid positions for the query, shape (D',).
+
+    Returns:
+        A 1D jax array of distances for each reference, shape (R,).
     """
 
     # count matches and valid positions
@@ -24,10 +36,14 @@ def seq_dist(q, seqs, ok, ok_query):
 
 def seq_dist2(s1, s2):
     """
-    Alternative cleaner seqdist implementation
+    Alternative distance using explicit one-hot with validity channel.
 
-    s1: (5, d) one-hot sequence
-    s2: (5, d) one-hot sequence
+    Args:
+        s1: One-hot with validity, shape (5, D) where last row is valid mask.
+        s2: One-hot with validity, shape (5, D) where last row is valid mask.
+
+    Returns:
+        Scalar fraction of matches over valid positions.
     """
     intersect = jnp.bitwise_and(s1, s2)
     matches = jax.lax.population_count(intersect, axis=1)
@@ -39,7 +55,21 @@ def seq_dist2(s1, s2):
 
 def get_X(q, ok_q, tree, N, sc_mean, sc_var):
     """
-    KNN-based method for computing design matrix
+    Construct the PROTAX design matrix using KNN distances and node state.
+
+    The design matrix concatenates binary node state features and KNN-derived
+    distance features normalized by per-level scaling parameters.
+
+    Args:
+        q: Packed bits for the query sequence bases (A/T/G/C).
+        ok_q: Packed bits mask for valid query positions.
+        tree: `TaxTree` instance with references, node2seq, and node_state.
+        N: Number of taxonomy nodes.
+        sc_mean: (N, 2) scaling means per node and distance column.
+        sc_var: (N, 2) scaling variances per node and distance column.
+
+    Returns:
+        A jax array of shape (N, M) where M = node_state_cols + 2.
     """
 
     node2seq = tree.node2seq
@@ -57,7 +87,14 @@ def get_X(q, ok_q, tree, N, sc_mean, sc_var):
 
 def get_z(X, params):
     """
-    Compute weighted sum for each node
+    Compute per-node linear score z = X · beta.
+
+    Args:
+        X: Design matrix of shape (N, M).
+        params: `ProtaxModel` containing `beta` with shape (N, M).
+
+    Returns:
+        A 1D jax array z of length N.
     """
     z = jnp.sum(jnp.multiply(X, params.beta), axis=1)
     return z
@@ -65,7 +102,15 @@ def get_z(X, params):
 
 def get_bprobs(z, segments, segnum):
     """
-    Compute branch probabilities of each node
+    Compute normalized branch probabilities per parent segment.
+
+    Args:
+        z: Nonnegative scores per node, shape (N,).
+        segments: Segment id (parent id bucket) per node, shape (N,).
+        segnum: Number of unique segment ids.
+
+    Returns:
+        A jax array of branch probabilities per node, shape (N,).
     """
     norm_factors = jax.ops.segment_sum(z, segments, num_segments=segnum, indices_are_sorted=True)
     norm_factors = jnp.take(norm_factors, segments, indices_are_sorted=True)
@@ -78,8 +123,17 @@ def get_bprobs(z, segments, segnum):
 
 def get_log_bprobs(z, segments, segnum):
     """
-    Compute log branch probabilities of each node
-    For training PROTAX
+    Compute log-branch probabilities per node in a numerically stable way.
+
+    Useful for training and for accumulating log-probabilities along paths.
+
+    Args:
+        z: Real-valued scores per node, shape (N,).
+        segments: Segment id (parent id bucket) per node, shape (N,).
+        segnum: Number of unique segment ids.
+
+    Returns:
+        A jax array of log-branch probabilities per node, shape (N,).
     """
 
     exp_z = jnp.exp(z)
@@ -93,13 +147,17 @@ def get_log_bprobs(z, segments, segnum):
 
 def fill_bprob(X, beta, tree, segnum):
     """
-    Compute branch probability of entire taxonomy, filled in relevant paths
-    X: design matrix of shape [N, M]
-    beta: param matrix of shape [N, M]
-    parents: array with shape [N]
+    Compute per-level path-wise branch probabilities across the taxonomy.
 
-    N = # nodes
-    M = # features
+    Args:
+        X: Design matrix, shape (N, M).
+        beta: Parameter matrix, shape (N, M).
+        tree: `TaxTree` with segments, paths, node_state, and priors.
+        segnum: Number of unique segment ids.
+
+    Returns:
+        A jax array of shape (L, P) with per-level branch probabilities along
+        each path in `tree.paths` (L levels by P paths).
     """
     z = jnp.sum(jnp.multiply(X, beta), axis=1)
     max_z = jax.ops.segment_max(z, tree.segments, num_segments=segnum, indices_are_sorted=True)
@@ -114,8 +172,17 @@ def fill_bprob(X, beta, tree, segnum):
 
 def fill_log_bprob(X, beta, tree, segnum):
     """
-    Compute log probabilities over entire taxonomy
-    Used for training PROTAX
+    Compute per-level log-branch probabilities across the taxonomy.
+
+    Args:
+        X: Design matrix, shape (N, M).
+        beta: Parameter matrix, shape (N, M).
+        tree: `TaxTree` with segments and paths.
+        segnum: Number of unique segment ids.
+
+    Returns:
+        A jax array of shape (L, P) with per-level log-branch probabilities
+        along each path in `tree.paths`.
     """
     z = jnp.sum(jnp.multiply(X, beta), axis=1)
     max_z = jax.ops.segment_max(z, tree.segments, num_segments=segnum, indices_are_sorted=True)
@@ -132,7 +199,18 @@ def fill_log_bprob(X, beta, tree, segnum):
 # @partial(jax.jit, static_argnums=(4, 5))
 def get_log_probs(q, ok, tree, params, segnum, N):
     """
-    Compute log probabilities for each node
+    Compute log-probability of each node by summing log-branch probs per path.
+
+    Args:
+        q: Packed bits for query bases.
+        ok: Packed bits mask for valid query positions.
+        tree: `TaxTree` instance.
+        params: `ProtaxModel` with beta, sc_mean, sc_var.
+        segnum: Number of unique segment ids.
+        N: Number of nodes in the taxonomy.
+
+    Returns:
+        A 1D jax array of length N with total log-probabilities per node.
     """
     X = get_X(q, ok, tree, N, params.sc_mean, params.sc_var)
     bprobs = fill_log_bprob(X, params.beta, tree, segnum)
@@ -140,6 +218,20 @@ def get_log_probs(q, ok, tree, params, segnum, N):
 
 # @partial(jax.jit, static_argnums=(4, 5))
 def get_probs(q, ok, tree, params, segnum, N):
+    """
+    Compute probability of each node by multiplying branch probs per path.
+
+    Args:
+        q: Packed bits for query bases.
+        ok: Packed bits mask for valid query positions.
+        tree: `TaxTree` instance.
+        params: `ProtaxModel` with beta, sc_mean, sc_var.
+        segnum: Number of unique segment ids.
+        N: Number of nodes in the taxonomy.
+
+    Returns:
+        A 1D jax array of length N with total probabilities per node.
+    """
     X = get_X(q, ok, tree, N, params.sc_mean, params.sc_var)
     bprobs = fill_bprob(X, params.beta, tree, segnum)
     return jnp.prod(bprobs, axis=1)
