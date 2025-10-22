@@ -1,0 +1,28 @@
+/* Custom CSS for PROTAX-GPU documentation */
+
+/* Improve code block readability */
+.highlight {
+    background: #f8f8f8;
+}
+
+/* Add some spacing for better readability */
+.rst-content dl:not(.docutils) dt {
+    background: #f0f0f0;
+    border-top: solid 3px #6ab0de;
+}
+
+/* Style for admonitions */
+.admonition {
+    margin: 1em 0;
+}
+
+/* Improve table styling */
+.rst-content table.docutils {
+    border: 1px solid #e1e4e5;
+}
+
+.rst-content table.docutils td,
+.rst-content table.docutils th {
+    border: 1px solid #e1e4e5;
+    padding: 8px;
+}

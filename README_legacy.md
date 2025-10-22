@@ -1,4 +1,4 @@
-# PROTAX-GPU
+# PROTAX-GPU (the original README.md)
 
 ![alt text](img/Block_diagram_upd.png?raw=true)
 

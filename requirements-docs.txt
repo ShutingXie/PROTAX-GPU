@@ -1,0 +1,16 @@
+# Documentation environment dependencies (isolated from runtime conda environment)
+# Build: Sphinx + MyST + RTD theme
+sphinx>=7.3
+myst-parser>=2.0.0
+sphinx-rtd-theme>=2.0.0
+
+# Useful Sphinx extensions for this project
+sphinx-argparse>=0.4.0
+sphinx-copybutton>=0.5.2
+sphinx-design>=0.5.0
+
+# Local live-reload during authoring (not used on RTD)
+sphinx-autobuild>=2024.4.16
+
+# RST/Docutils used by verify_docs.sh for syntax checks
+docutils>=0.19
