@@ -1,3 +1,10 @@
+"""
+Classification module for PROTAX-GPU.
+
+This module provides functions for classifying DNA barcode sequences using trained
+PROTAX models. It includes utilities for batch classification from FASTA-like files
+and helper functions for taxonomy validation.
+"""
 import os
 
 from .protax_utils import read_model_jax, read_query, read_baseline
@@ -16,13 +23,22 @@ def load_layer(tdir):
     """
     Load per-node taxonomic levels from a taxonomy NPZ file.
 
+    This function extracts the layer/rank information for each node in the taxonomic
+    tree, where layer 0 is typically the root and higher layers represent finer
+    taxonomic ranks (e.g., kingdom, phylum, class, order, family, genus, species).
+
     Args:
-        tdir: Path-like object or string pointing to a taxonomy `.npz` file
-            produced by `convert_taxonomy` (e.g., `models/ref_db/taxonomy*.npz`).
+        tdir (str or Path): Path-like object or string pointing to a taxonomy `.npz`
+            file produced by `convert_taxonomy` (e.g., `models/ref_db/taxonomy*.npz`).
 
     Returns:
-        A 1D numpy array of integers where each entry is the layer index
-        (rank depth) for the corresponding node in the taxonomy.
+        numpy.ndarray: A 1D numpy array of integers where each entry is the layer
+            index (rank depth) for the corresponding node in the taxonomy.
+
+    Example:
+        >>> layers = load_layer("models/ref_db/taxonomy37k.npz")
+        >>> print(layers[0])  # Root node is typically at layer 0
+        0
     """
     tax_dir = Path(tdir)
 
@@ -39,14 +55,21 @@ def read_names(tdir):
     Read the taxon names from a PROTAX taxonomy text file.
 
     The file is expected to be a tab-separated text file where each line
-    contains `nid, pid, lvl, name, prior, ...`. Only the `name` field is
-    collected.
+    contains fields in the format: `nid, pid, lvl, name, prior, ...`. Only
+    the `name` field is extracted and returned.
 
     Args:
-        tdir: Path to the taxonomy `.priors` text file.
+        tdir (str or Path): Path to the taxonomy `.priors` text file containing
+            node information in tab-separated format.
 
     Returns:
-        A list of strings containing the taxon names in index order.
+        list of str: A list of strings containing the taxon names in node index
+            order, where the index in the list corresponds to the node ID.
+
+    Example:
+        >>> names = read_names("models/ref_db/taxonomy.priors")
+        >>> print(names[0])  # Root taxon name
+        'root'
     """
     f = open(tdir)
     node_dat = f.readlines()
@@ -66,13 +89,25 @@ def validate_taxonomy_query(tree, query, ok_query):
     """
     Validate that the taxonomy and query dimensions match.
 
+    This function ensures that the reference sequences in the taxonomy and the
+    query sequence have compatible dimensions for distance computation. Both the
+    packed bits arrays and the validity masks must have matching lengths.
+
     Args:
-        tree: TaxTree object containing taxonomy information.
-        query: Query sequence array.
-        ok_query: Boolean array indicating valid positions in the query.
+        tree (TaxTree): TaxTree object containing taxonomy information including
+            reference sequences and validity masks.
+        query (jax.Array): Query sequence array (packed bits representation).
+        ok_query (jax.Array): Boolean array indicating valid positions in the query
+            (packed bits representation).
 
     Raises:
-        ValueError: If dimensions are incompatible.
+        ValueError: If the sequence lengths or valid position arrays are incompatible
+            between the taxonomy references and the query.
+
+    Example:
+        >>> tree, params, N, segnum = read_model_jax("model.npz", "taxonomy.npz")
+        >>> q, ok = read_query("ATGC...")
+        >>> validate_taxonomy_query(tree, q, ok)  # Raises error if incompatible
     """
     # Check the number of positions in references and query
     if tree.refs.shape[1] != query.shape[0]:
@@ -91,17 +126,34 @@ def classify_file(qdir, par_dir, tax_dir, verbose=False):
     This function streams query sequences from a FASTA-like alignment file
     (two lines per record: header then sequence), computes per-node
     probabilities with the JAX implementation, and writes the per-level
-    predictions to `pyprotax_results.csv`.
+    predictions to `pyprotax_results.csv`. The classification is based on
+    the probabilistic taxonomic model described in the PROTAX paper.
 
     Args:
-        qdir: Path to the query alignment file (e.g., `refs.aln`).
-        par_dir: Path to the model parameters `.npz` file (e.g., `models/params/model.npz`).
-        tax_dir: Path to the taxonomy `.npz` file (e.g., `models/ref_db/taxonomy*.npz`).
-        verbose: If True, prints per-record timing and optional debug info.
+        qdir (str or Path): Path to the query alignment file containing sequences
+            to classify. Expected format: two lines per record (header, then sequence).
+            Example: `refs.aln`.
+        par_dir (str or Path): Path to the model parameters `.npz` file containing
+            trained beta coefficients and scaling statistics.
+            Example: `models/params/model.npz`.
+        tax_dir (str or Path): Path to the taxonomy `.npz` file containing the
+            reference database, taxonomic tree structure, and node mappings.
+            Example: `models/ref_db/taxonomy37k.npz`.
+        verbose (bool, optional): If True, prints per-record timing and optional
+            debug information. Defaults to False.
+
+    Returns:
+        None
 
     Side Effects:
-        Writes `pyprotax_results.csv` with one row per query containing the
-        predicted level indices.
+        Writes `pyprotax_results.csv` in the current directory with one row per
+        query containing the predicted node indices at each taxonomic level.
+        Prints total classification time to stdout.
+
+    Example:
+        >>> classify_file("queries.aln", "models/params/model.npz",
+        ...               "models/ref_db/taxonomy37k.npz", verbose=True)
+        finished in 12.34s
     """
 
     tree, params, N, segnum = read_model_jax(par_dir, tax_dir)
@@ -155,18 +207,35 @@ def classify(q, ok, tree, params, segnum, N):
     """
     Classify a single query sequence given a taxonomy and model parameters.
 
-    This is a placeholder for a lower-level API that mirrors `classify_file`.
+    This is a lower-level API for single-sequence classification that can be
+    used programmatically. Currently a placeholder for future implementation.
+    Use `classify_file` for batch processing or implement custom logic using
+    `get_probs` from the model module.
 
     Args:
-        q: Packed bits representation of the query sequence bases (A/T/G/C).
-        ok: Packed bits mask of positions that are valid base calls.
-        tree: `TaxTree` containing reference database and topology.
-        params: `ProtaxModel` parameters (beta and scaling stats).
-        segnum: Number of unique segment ids in `tree.segments`.
-        N: Number of nodes in the taxonomy.
+        q (jax.Array): Packed bits representation of the query sequence bases
+            (A/T/G/C), with shape (D',) where D' is the packed width.
+        ok (jax.Array): Packed bits mask of positions that are valid base calls,
+            with shape (D',).
+        tree (TaxTree): `TaxTree` instance containing reference database and
+            taxonomic topology.
+        params (ProtaxModel): `ProtaxModel` instance with beta coefficients and
+            scaling statistics (sc_mean, sc_var).
+        segnum (int): Number of unique segment ids in `tree.segments` (used for
+            JAX segment operations).
+        N (int): Total number of nodes in the taxonomy.
 
     Returns:
-        Not implemented yet.
+        Not implemented yet. Future versions will return predicted node IDs or
+        probability distributions.
+
+    Note:
+        This function is a placeholder. For single-sequence classification, you
+        can use:
+        ```python
+        probs = get_probs(q, ok, tree, params, segnum, N)
+        classified = jnp.argmax(probs)
+        ```
     """
     pass
 

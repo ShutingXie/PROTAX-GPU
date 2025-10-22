@@ -31,7 +31,25 @@ except ImportError:
 # =======================================================
 def default_layouts(*shapes):
     """
-    Helper to specify default memory layout for custom call
+    Generate default row-major memory layouts for custom call operands/results.
+
+    XLA custom calls require explicit memory layout specifications. This helper
+    generates the standard row-major layout (last dimension varies fastest) for
+    tensors of given shapes.
+
+    Args:
+        *shapes (tuple of tuple): Variable number of shape tuples, e.g.
+            (10, 20), (5, 3, 4) for 2D and 3D arrays.
+
+    Returns:
+        list of range: List of dimension orderings where each range specifies
+            row-major layout (dimensions in reverse order).
+
+    Example:
+        >>> default_layouts((3, 4), (5,))
+        [range(1, -1, -1), range(0, -1, -1)]
+        # For (3,4): dims [1,0] means last dim varies fastest (row-major)
+        # For (5,):   dims [0] means single dimension
     """
     return [range(len(shape) - 1, -1, -1) for shape in shapes]
 
@@ -43,7 +61,34 @@ def default_layouts(*shapes):
 
 def knn(indptr, indices, matdat, N):
     """
-    Return row-wise k nearest neighbors for a sparse CSR matrix
+    Compute row-wise k=2 nearest neighbors for a sparse CSR matrix.
+
+    For each row, identifies the two smallest values and returns them. This is
+    used in PROTAX to find the k=2 nearest reference sequences per taxonomic node.
+
+    Args:
+        indptr (jax.Array): CSR row pointer array, shape (N+1,). Entry i gives
+            the start index in `indices`/`matdat` for row i.
+        indices (jax.Array): CSR column indices, shape (nnz,).
+        matdat (jax.Array): CSR data values (e.g., distances), shape (nnz,).
+            Must be float32.
+        N (int): Number of rows in the matrix.
+
+    Returns:
+        jax.Array: Shape (N, 2) containing the k=2 smallest values per row.
+            Rows with fewer than 2 elements are zero-padded.
+
+    Note:
+        Automatically dispatches to CPU or GPU implementation based on the
+        default backend. For GPU-only execution, use `knn_v2`.
+
+    Example:
+        >>> indptr = jnp.array([0, 2, 5])  # 2 rows
+        >>> indices = jnp.array([0, 2, 1, 3, 4])
+        >>> matdat = jnp.array([0.1, 0.5, 0.2, 0.3, 0.4], dtype=jnp.float32)
+        >>> knn(indptr, indices, matdat, 2)
+        Array([[0.1, 0.5],
+               [0.2, 0.3]], dtype=float32)
     """
 
     res = jnp.zeros((N, 2))
@@ -52,7 +97,25 @@ def knn(indptr, indices, matdat, N):
 
 def knn_v2(indptr, indices, matdat, N):
     """
-    Return row-wise k nearest neighbors for a sparse CSR matrix
+    GPU-only variant of KNN with optimized kernel.
+
+    Similar to `knn` but uses an alternative CUDA kernel implementation that
+    may have different performance characteristics. Only works on GPU.
+
+    Args:
+        indptr (jax.Array): CSR row pointer array, shape (N+1,).
+        indices (jax.Array): CSR column indices, shape (nnz,).
+        matdat (jax.Array): CSR data values, shape (nnz,). Must be float32.
+        N (int): Number of rows in the matrix.
+
+    Returns:
+        jax.Array: Shape (N, 2) containing the k=2 smallest values per row.
+
+    Raises:
+        ValueError: If GPU operations are not available.
+
+    Note:
+        This function requires CUDA and will fail if GPU ops are not compiled.
     """
 
     res = jnp.zeros((N, 2))
@@ -64,21 +127,52 @@ def knn_v2(indptr, indices, matdat, N):
 # =======================================================
 def _knn_abstract_eval(indptr, indices, matdat, res):
     """
-    Abstract evaluation for knn primitive where k=2
+    Abstract evaluation for knn primitive (shape and dtype inference).
 
-    mat: input CSR matrix
+    JAX's JIT compiler calls this during trace to determine output shapes and
+    dtypes without executing the operation. This enables static compilation.
 
-    NOTE: signature should match that of _knn_prim.bind() call
+    Args:
+        indptr: Abstract value for CSR row pointers.
+        indices: Abstract value for CSR column indices.
+        matdat: Abstract value for CSR data (determines output dtype).
+        res: Abstract value for result template (determines output shape).
+
+    Returns:
+        ShapedArray: Abstract array with shape (N, 2) and dtype matching `matdat`.
+
+    Note:
+        Signature must match `_knn_prim.bind()` call signature exactly.
     """
     return ShapedArray(res.shape, matdat.dtype)
 
 
 def _knn_lowering(ctx, indptr, indices, matdat, res, platform="cpu"):
     """
-    MLIR lowering rule for knn primitive where k=2.
-    i.e. lowering knn primitive to MLIR custom call
+    MLIR lowering rule for knn primitive (compilation to custom call).
 
-    ctx: mlir.LoweringRuleContext
+    This function is called by JAX's compiler to convert the abstract `knn`
+    primitive into concrete MLIR custom_call operations that invoke C++/CUDA
+    implementations.
+
+    Args:
+        ctx (mlir.LoweringRuleContext): Context containing input abstract values
+            and MLIR builder state.
+        indptr: MLIR value for CSR row pointers.
+        indices: MLIR value for CSR column indices.
+        matdat: MLIR value for CSR data.
+        res: MLIR value for result template.
+        platform (str): Target platform, either "cpu" or "gpu".
+
+    Returns:
+        list: Single-element list containing MLIR value for the result tensor.
+
+    Raises:
+        NotImplementedError: If dtype is not float32.
+
+    Note:
+        GPU version uses an opaque descriptor to pass problem size to CUDA kernel.
+        CPU version passes N as a scalar constant operand.
     """
 
     mat_dtype = ctx.avals_in[2].dtype
@@ -128,21 +222,49 @@ def _knn_lowering(ctx, indptr, indices, matdat, res, platform="cpu"):
 # =======================================================
 def _knn_v2_abstract_eval(indptr, indices, matdat, res):
     """
-    Abstract evaluation for knn primitive where k=2
+    Abstract evaluation for knn_v2 primitive (GPU variant).
 
-    mat: input CSR matrix
+    Identical to `_knn_abstract_eval` but for the knn_v2 primitive.
 
-    NOTE: signature should match that of _knn_prim.bind() call
+    Args:
+        indptr: Abstract value for CSR row pointers.
+        indices: Abstract value for CSR column indices.
+        matdat: Abstract value for CSR data (determines output dtype).
+        res: Abstract value for result template (determines output shape).
+
+    Returns:
+        ShapedArray: Abstract array with shape (N, 2) and dtype matching `matdat`.
+
+    Note:
+        Signature must match `_knn_v2_prim.bind()` call signature exactly.
     """
     return ShapedArray(res.shape, matdat.dtype)
 
 
 def _knn_v2_lowering(ctx, indptr, indices, matdat, res):
     """
-    MLIR lowering for knn primitive where k=2.
-    i.e. lowering primitive to MLIR custom call (knn kernel dispatch)
+    MLIR lowering for knn_v2 primitive (GPU-only variant).
 
-    ctx: mlir.LoweringRuleContext
+    Similar to `_knn_lowering` but specifically for the GPU-optimized v2 kernel.
+    Raises an error if GPU operations are not available.
+
+    Args:
+        ctx (mlir.LoweringRuleContext): Context containing input abstract values.
+        indptr: MLIR value for CSR row pointers.
+        indices: MLIR value for CSR column indices.
+        matdat: MLIR value for CSR data.
+        res: MLIR value for result template.
+
+    Returns:
+        list: Single-element list containing MLIR value for the result tensor.
+
+    Raises:
+        NotImplementedError: If dtype is not float32.
+        ValueError: If GPU operations are not compiled/available.
+
+    Note:
+        This variant calls a different CUDA kernel (gpu_knn_v2_f32) that may
+        use alternative optimization strategies.
     """
 
     mat_dtype = ctx.avals_in[2].dtype
